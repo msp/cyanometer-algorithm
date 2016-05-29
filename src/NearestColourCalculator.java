@@ -2,7 +2,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 
 import java.io.File;
-import java.util.ArrayList;
+import java.util.*;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -10,6 +10,7 @@ import javax.swing.*;
 class NearestColourCalculator extends JPanel {
     ArrayList<Color> referenceColors = new ArrayList<Color>();
     ArrayList<Color> nearestColors = new ArrayList<Color>();
+    Color nearestColor;
     Image sourceImage;
     int sourceImageSize = 100; //assumes square!
     boolean debug = true;
@@ -59,17 +60,55 @@ class NearestColourCalculator extends JPanel {
         return temp;
     }
 
+    private void calculateCyanometerColor(HashMap<Color, Integer> nearestColorsAggregation) {
+        ArrayList as = new ArrayList(nearestColorsAggregation.entrySet());
+
+        Collections.sort(as , new Comparator() {
+            public int compare( Object o1 , Object o2 ) {
+                Map.Entry e1 = (Map.Entry)o1 ;
+                Map.Entry e2 = (Map.Entry)o2 ;
+                Integer first = (Integer)e1.getValue();
+                Integer second = (Integer)e2.getValue();
+                return first.compareTo(second);
+            }
+        });
+
+        if (this.debug) {
+            Iterator i = as.iterator();
+            while (i.hasNext()) {
+                System.out.println(i.next());
+            }
+        }
+
+        this.nearestColor = (Color) ((Map.Entry) as.get(as.size() -1)).getKey();
+        System.out.println("nearestColor: "+nearestColor);
+    }
 
     // UI
     public void paint(Graphics g) {
-        Image cyanometerPreviewImage = createPreview();
+        Image cyanometerPreviewImage = createPreviewImage();
+        Image cyanometerColorImage = createColorImage();
         //Image scaled = img.getScaledInstance(sourceImageSize * previewPixelSize, sourceImageSize * previewPixelSize, Image.SCALE_DEFAULT);
 
         g.drawImage(sourceImage, 0, 0, this);
         g.drawImage(cyanometerPreviewImage, this.sourceImageSize, 0, this);
+        g.drawImage(cyanometerColorImage, this.sourceImageSize * 2, 0, this);
     }
 
-    public Image createPreview() {
+    public Image createColorImage() {
+        BufferedImage bufferedImage = new
+                BufferedImage(sourceImageSize, sourceImageSize, BufferedImage.TYPE_INT_RGB);
+
+        for (int x = 0; x < sourceImageSize; x++) {
+            for (int y = 0; y < sourceImageSize; y++) {
+                bufferedImage.setRGB(x, y, this.nearestColor.getRGB());
+            }
+        }
+
+        return bufferedImage;
+    }
+
+    public Image createPreviewImage() {
         BufferedImage bufferedImage = new
                 BufferedImage(sourceImageSize, sourceImageSize, BufferedImage.TYPE_INT_RGB);
 
@@ -117,6 +156,7 @@ class NearestColourCalculator extends JPanel {
 
         ArrayList<Color> referenceColors = new ArrayList<Color>();
         ArrayList<Color> nearestColors = new ArrayList<Color>();
+        HashMap<Color, Integer> nearestColorsAggregation = new HashMap<Color, Integer>();
 
         for (int i = 0; i < referenceColorsHex.length; i++) {
             referenceColors.add(Color.decode(String.valueOf(referenceColorsHex[i])));
@@ -139,6 +179,15 @@ class NearestColourCalculator extends JPanel {
                     Color fromPixel = new Color(sourceImage.getRGB(j, i));
                     Color nearestColor = nearestColourCalculator.calculateNearest(fromPixel);
                     nearestColors.add(nearestColor);
+
+                    if (nearestColorsAggregation.containsKey(nearestColor)) {
+                        int currentCount = nearestColorsAggregation.get(nearestColor);
+                        nearestColorsAggregation.put(nearestColor, ++currentCount);
+
+                    } else {
+                        nearestColorsAggregation.put(nearestColor, 1);
+                    }
+
                     if (nearestColourCalculator.debug) {
                         System.out.println("["+count+"] \t pixel: "+fromPixel+" \t nearest: "+nearestColor);
                     }
@@ -150,6 +199,8 @@ class NearestColourCalculator extends JPanel {
 
             // store the cyanometer pixel colors we derived from the image
             nearestColourCalculator.setNearestColors(nearestColors);
+
+            nearestColourCalculator.calculateCyanometerColor(nearestColorsAggregation);
 
             // display a preview
             JFrame frame = new JFrame();
